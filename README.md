@@ -1,38 +1,33 @@
-# sv
+# Node.js Dependency Visualizer
 
-Everything you need to build a Svelte project, powered by [`sv`](https://github.com/sveltejs/cli).
+An interactive web application for visualizing Node.js dependency graphs from package-lock.json and yarn.lock files.
 
-## Creating a project
+![Dependency Graph Screenshot](screenshot.png)
 
-If you're seeing this, you've probably already done this step. Congrats!
+## Features
 
-```bash
-# create a new project in the current directory
-npx sv create
+- Upload and parse package-lock.json or yarn.lock files
+- Interactive visualization using D3.js force-directed graph
+- Color-coded dependencies based on type (production, development, peer, optional)
+- Highlight version conflicts to identify potential issues
+- Search functionality to find specific packages
+- Zoom, pan and drag controls for easy navigation
+- Export visualizations as SVG or PNG
+- Accessible alternative table view
 
-# create a new project in my-app
-npx sv create my-app
-```
+## Installation
 
-## Developing
-
-Once you've created a project and installed dependencies with `npm install` (or `pnpm install` or `yarn`), start a development server:
-
-```bash
-npm run dev
-
-# or start the server and open the app in a new browser tab
-npm run dev -- --open
-```
-
-## Building
-
-To create a production version of your app:
+Clone the repository and install dependencies:
 
 ```bash
-npm run build
+# Clone the repository
+git clone https://github.com/yourusername/dependency-visualizer.git
+cd dependency-visualizer
+
+# Install dependencies
+npm install
+# or
+pnpm install
+# or
+yarn install
 ```
-
-You can preview the production build with `npm run preview`.
-
-> To deploy your app, you may need to install an [adapter](https://svelte.dev/docs/kit/adapters) for your target environment.
