@@ -38,6 +38,25 @@
     };
     reader.readAsText(file);
   }
+
+  // Function to export the graph as SVG
+  function exportAsSVG() {
+    if (!document.querySelector('.chart-container svg')) {
+      return;
+    }
+    
+    const svgElement = document.querySelector('.chart-container svg')!;
+    const svgData = new XMLSerializer().serializeToString(svgElement);
+    const svgBlob = new Blob([svgData], {type: 'image/svg+xml;charset=utf-8'});
+    const svgUrl = URL.createObjectURL(svgBlob);
+    
+    const downloadLink = document.createElement('a');
+    downloadLink.href = svgUrl;
+    downloadLink.download = 'dependency-graph.svg';
+    document.body.appendChild(downloadLink);
+    downloadLink.click();
+    document.body.removeChild(downloadLink);
+  }
 </script>
 
 <div class="container mx-auto p-4">
@@ -67,13 +86,21 @@
   </div>
 
   {#if graphData}
-    <div class="mb-4">
+    <div class="mb-4 flex flex-wrap gap-2 items-center">
       <input
         type="search"
         placeholder="Search packages..."
         bind:value={searchTerm}
-        class="p-2 border rounded w-full"
+        class="p-2 border rounded flex-1"
       />
+      
+      <!-- Export button -->
+      <button 
+        class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600"
+        on:click={exportAsSVG}
+      >
+        Export as SVG
+      </button>
     </div>
     
     <DependencyGraph data={graphData} {searchTerm} />
@@ -91,7 +118,8 @@
               <tr>
                 <th class="px-4 py-2 border">Package</th>
                 <th class="px-4 py-2 border">Version</th>
-                <th class="px-4 py-2 border">ID</th>
+                <th class="px-4 py-2 border">Type</th>
+                <th class="px-4 py-2 border">Multiple Versions?</th>
               </tr>
             </thead>
             <tbody>
@@ -99,7 +127,8 @@
                 <tr>
                   <td class="px-4 py-2 border">{node.name}</td>
                   <td class="px-4 py-2 border">{node.version}</td>
-                  <td class="px-4 py-2 border">{node.id}</td>
+                  <td class="px-4 py-2 border">{node.type || 'prod'}</td>
+                  <td class="px-4 py-2 border">{node.hasMultipleVersions ? 'Yes' : 'No'}</td>
                 </tr>
               {/each}
             </tbody>

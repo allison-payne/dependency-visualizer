@@ -1,19 +1,20 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import type { SimulationNodeDatum, SimulationLinkDatum } from 'd3-force';
+import type { SimulationLinkDatum, SimulationNodeDatum } from 'd3-force';
 
 // Define custom node type extending D3's SimulationNodeDatum
 export interface NodeType extends SimulationNodeDatum {
   id: string; // Package name@version or unique identifier
   name: string; // Package name
   version: string; // Package version
-  // Add other relevant metadata from parser if needed (e.g., dependencies, dev status)
+  type?: 'prod' | 'dev' | 'peer' | 'optional'; // Added type field
+  hasMultipleVersions?: boolean; // Add flag for version conflicts
 }
 
 // Define custom link type extending D3's SimulationLinkDatum
 export interface LinkType extends SimulationLinkDatum<NodeType> {
   source: string | number | NodeType; // D3 allows string/number IDs initially
   target: string | number | NodeType;
-  // Add type if needed (e.g., 'prod', 'dev')
+  type?: 'prod' | 'dev' | 'peer' | 'optional'; // Add link type
 }
 
 export interface DependencyGraphData {
@@ -53,16 +54,20 @@ function parsePackageLock(content: string): DependencyGraphData {
   nodesMap.set(rootId, {
     id: rootId,
     name: rootName,
-    version: rootVersion
+    version: rootVersion,
+    type: 'prod' // Root is considered a production dependency
   });
   
   // Process dependencies (could be under dependencies, packages, or both depending on npm version)
   const packages = packageLock.packages || {};
   const dependencies = packageLock.dependencies || {};
   
+  // Track package names for version conflict detection
+  const packageVersions = new Map<string, Set<string>>();
+  
   // Handle npm v2/v3 style lockfiles (dependencies object)
   if (Object.keys(dependencies).length > 0) {
-    processDependenciesOldFormat(dependencies, rootId, nodesMap, links);
+    processDependenciesOldFormat(dependencies, rootId, nodesMap, links, packageVersions, false);
   }
   
   // Handle npm v7+ style lockfiles (packages object)
@@ -77,9 +82,31 @@ function parsePackageLock(content: string): DependencyGraphData {
       const version = (details as any).version || 'unknown';
       const nodeId = `${name}@${version}`;
       
+      // Determine dependency type from dev flag and path structure
+      const isDev = (details as any).dev === true;
+      const isPeer = (details as any).peer === true;
+      const isOptional = (details as any).optional === true;
+      let type: 'prod' | 'dev' | 'peer' | 'optional' = 'prod';
+      
+      if (isDev) type = 'dev';
+      else if (isPeer) type = 'peer';
+      else if (isOptional) type = 'optional';
+      
+      // Track versions for conflict detection
+      if (!packageVersions.has(name)) {
+        packageVersions.set(name, new Set([version]));
+      } else {
+        packageVersions.get(name)!.add(version);
+      }
+      
       // Add node if not exists
       if (!nodesMap.has(nodeId)) {
-        nodesMap.set(nodeId, { id: nodeId, name, version });
+        nodesMap.set(nodeId, { 
+          id: nodeId, 
+          name, 
+          version,
+          type
+        });
       }
       
       // Add links based on dependencies
@@ -90,7 +117,8 @@ function parsePackageLock(content: string): DependencyGraphData {
         
         links.push({
           source: nodeId,
-          target: targetId
+          target: targetId,
+          type // Inherit the parent's dependency type
         });
       });
       
@@ -98,11 +126,24 @@ function parsePackageLock(content: string): DependencyGraphData {
       if (parts.length === 2) { // Only one level deep from node_modules
         links.push({
           source: rootId,
-          target: nodeId
+          target: nodeId,
+          type // Use the determined dependency type
         });
       }
     });
   }
+  
+  // Mark nodes with multiple versions
+  packageVersions.forEach((versions, packageName) => {
+    if (versions.size > 1) {
+      // Find all nodes with this package name and mark them
+      for (const [, node] of nodesMap.entries()) {
+        if (node.name === packageName) {
+          node.hasMultipleVersions = true;
+        }
+      }
+    }
+  });
   
   const nodes = Array.from(nodesMap.values());
   
@@ -239,11 +280,30 @@ function processDependenciesOldFormat(
   dependencies: Record<string, any>,
   parentId: string,
   nodesMap: Map<string, NodeType>,
-  links: LinkType[]
+  links: LinkType[],
+  packageVersions: Map<string, Set<string>>,
+  isDev = false
 ): void {
   for (const [name, details] of Object.entries(dependencies)) {
     const version = details.version || 'unknown';
     const nodeId = `${name}@${version}`;
+    
+    // Determine dependency type
+    const isPeer = details.peer === true;
+    const isOptional = details.optional === true;
+    const currentIsDev = isDev || details.dev === true;
+    
+    let type: 'prod' | 'dev' | 'peer' | 'optional' = 'prod';
+    if (currentIsDev) type = 'dev';
+    else if (isPeer) type = 'peer';
+    else if (isOptional) type = 'optional';
+    
+    // Track versions for conflict detection
+    if (!packageVersions.has(name)) {
+      packageVersions.set(name, new Set([version]));
+    } else {
+      packageVersions.get(name)!.add(version);
+    }
     
     // Add node if it doesn't exist
     if (!nodesMap.has(nodeId)) {
@@ -251,6 +311,7 @@ function processDependenciesOldFormat(
         id: nodeId,
         name,
         version,
+        type
       });
     }
     
@@ -258,11 +319,19 @@ function processDependenciesOldFormat(
     links.push({
       source: parentId,
       target: nodeId,
+      type
     });
     
     // Process nested dependencies recursively
     if (details.dependencies) {
-      processDependenciesOldFormat(details.dependencies, nodeId, nodesMap, links);
+      processDependenciesOldFormat(
+        details.dependencies, 
+        nodeId, 
+        nodesMap, 
+        links, 
+        packageVersions,
+        currentIsDev // Pass down dev status
+      );
     }
   }
 }
