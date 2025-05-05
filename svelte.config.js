@@ -14,9 +14,13 @@ const config = {
 			precompress: false,
 			strict: true
 		}),
+		// Add this paths configuration
+		paths: {
+			base: process.env.NODE_ENV === 'production' ? '/dependency-visualizer' : ''
+		},
+		// For SvelteKit 2.x, simply set to true to prerender all routes
 		prerender: {
-			// Prerender all pages
-			default: true
+			handleMissingId: 'ignore'
 		}
 	}
 };
