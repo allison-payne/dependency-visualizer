@@ -1,5 +1,5 @@
 <script lang="ts">
-	import type { DependencyGraphData, LinkType, NodeType } from '$lib/utils/lockfileParser';
+	import type { DependencyGraphData, LinkType, NodeType } from '$lib/types';
 	import * as d3 from 'd3';
 	import { onMount } from 'svelte';
 	import Legend from './Legend.svelte';

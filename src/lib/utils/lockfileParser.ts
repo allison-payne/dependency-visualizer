@@ -1,42 +1,34 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import type { SimulationLinkDatum, SimulationNodeDatum } from 'd3-force';
+import type { DependencyGraphData, NodeType, LinkType } from '$lib/types';
+import * as yaml from 'js-yaml';
 
-// Define custom node type extending D3's SimulationNodeDatum
-export interface NodeType extends SimulationNodeDatum {
-  id: string; // Package name@version or unique identifier
-  name: string; // Package name
-  version: string; // Package version
-  type?: 'prod' | 'dev' | 'peer' | 'optional'; // Added type field
-  hasMultipleVersions?: boolean; // Add flag for version conflicts
+// Add TypeScript interfaces for PNPM lock file
+interface PnpmLockfile {
+  name?: string;
+  version?: string;
+  lockfileVersion?: number;
+  dependencies?: Record<string, string>;
+  devDependencies?: Record<string, string>;
+  packages?: Record<string, PnpmPackageInfo>;
 }
 
-// Define custom link type extending D3's SimulationLinkDatum
-export interface LinkType extends SimulationLinkDatum<NodeType> {
-  source: string | number | NodeType; // D3 allows string/number IDs initially
-  target: string | number | NodeType;
-  type?: 'prod' | 'dev' | 'peer' | 'optional'; // Add link type
+interface PnpmPackageInfo {
+  version?: string;
+  dependencies?: Record<string, string>;
+  devDependencies?: Record<string, string>;
+  optionalDependencies?: Record<string, string>;
+  peerDependencies?: Record<string, string>;
 }
 
-export interface DependencyGraphData {
-  nodes: NodeType[];
-  links: LinkType[];
-}
-
-export async function parseLockfile(
-  lockfileContent: string,
-  lockfileType: 'package-lock' | 'yarn' | 'pnpm'
-): Promise<DependencyGraphData> {
-  try {
-    if (lockfileType === 'package-lock') {
-      return parsePackageLock(lockfileContent);
-    } else if (lockfileType === 'yarn') {
-      return parseYarnLock(lockfileContent);
-    } else {
-      throw new Error(`Lockfile type '${lockfileType}' not supported yet`);
-    }
-  } catch (error: any) {
-    console.error("Error parsing lockfile:", error);
-    throw new Error(`Failed to parse lockfile: ${error.message}`);
+export function parseLockfile(content: string, filename: string): DependencyGraphData {
+  if (filename.includes('package-lock.json')) {
+    return parsePackageLock(content);
+  } else if (filename.includes('yarn.lock')) {
+    return parseYarnLock(content);
+  } else if (filename.includes('pnpm-lock.yaml')) {
+    return parsePnpmLock(content);
+  } else {
+    throw new Error('Unsupported lock file format');
   }
 }
 
@@ -274,6 +266,96 @@ function parseYarnLock(content: string): DependencyGraphData {
   
   return { nodes, links: validLinks };
 }
+function parsePnpmLock(content: string): DependencyGraphData {
+  const pnpmLock = yaml.load(content) as PnpmLockfile;
+  const nodesMap = new Map<string, NodeType>();
+  const links: LinkType[] = [];
+  
+  // Add root package
+  const rootName = pnpmLock.name || "root";
+  const rootVersion = pnpmLock.version || "0.0.0";
+  const rootId = `${rootName}@${rootVersion}`;
+  
+  nodesMap.set(rootId, {
+    id: rootId,
+    name: rootName,
+    version: rootVersion,
+    dependencies: [],
+    level: 0
+  });
+  
+  // Process packages
+  if (pnpmLock.packages) {
+    // PNPM uses a flat structure where keys are package paths
+    for (const [pkgPath, pkgInfo] of Object.entries(pnpmLock.packages)) {
+      if (pkgPath === '.') continue; // Skip root package
+      
+      // Extract package info from path (format: /package-name@version)
+      const pathMatch = pkgPath.match(/\/([^@]+)@(.+)$/);
+      if (!pathMatch) continue;
+      
+      const [, name, version] = pathMatch;
+      const id = `${name}@${version}`;
+      
+      // Create node if it doesn't exist
+      if (!nodesMap.has(id)) {
+        nodesMap.set(id, {
+          id,
+          name,
+          version,
+          dependencies: [],
+          level: 1 // Will be updated later
+        });
+      }
+      
+      // Process dependencies
+      if (pkgInfo.dependencies) {
+        for (const [depName, depVersion] of Object.entries(pkgInfo.dependencies)) {
+          const depId = `${depName}@${depVersion.replace(/^[\^~]/, '')}`;
+          
+          // Add the dependency node if it doesn't exist
+          if (!nodesMap.has(depId)) {
+            const extractedVersion = depVersion.replace(/^[\^~]/, '');
+            nodesMap.set(depId, {
+              id: depId,
+              name: depName,
+              version: extractedVersion,
+              dependencies: [],
+              level: 2 // Will be updated during traversal
+            });
+          }
+          
+          // Add the link
+          links.push({
+            source: id,
+            target: depId,
+            type: 'normal'
+          });
+          
+          // Update node's dependencies array
+          nodesMap.get(id)?.dependencies?.push(depName);
+        }
+      }
+      
+      // Add as a dependency of the root if it's a direct dependency
+      if (pnpmLock.dependencies?.[name] || pnpmLock.devDependencies?.[name]) {
+        links.push({
+          source: rootId,
+          target: id,
+          type: pnpmLock.dependencies?.[name] ? 'normal' : 'dev'
+        });
+        
+        // Add to root's dependencies list
+        nodesMap.get(rootId)?.dependencies?.push(name);
+      }
+    }
+  }
+  
+  // Update levels based on graph traversal
+  const nodes = calculateLevels(rootId, nodesMap, links);
+  
+  return { nodes, links };
+}
 
 // Helper function to recursively process dependencies (for older npm lockfile format)
 function processDependenciesOldFormat(
@@ -334,4 +416,34 @@ function processDependenciesOldFormat(
       );
     }
   }
+}
+
+// We might need to add or update this function to calculate node levels
+function calculateLevels(
+  rootId: string,
+  nodesMap: Map<string, NodeType>,
+  links: LinkType[]
+): NodeType[] {
+  const visited = new Set<string>();
+  
+  function traverse(nodeId: string, level: number) {
+    if (visited.has(nodeId)) return;
+    visited.add(nodeId);
+    
+    const node = nodesMap.get(nodeId);
+    if (node) {
+      node.level = Math.min(node.level !== undefined ? node.level : Infinity, level);
+      
+      // Find all outgoing links
+      const outLinks = links.filter(link => link.source === nodeId);
+      for (const link of outLinks) {
+        traverse(link.target as string, level + 1);
+      }
+    }
+  }
+  
+  // Start traversal from the root node
+  traverse(rootId, 0);
+  
+  return Array.from(nodesMap.values());
 }

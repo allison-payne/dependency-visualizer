@@ -43,7 +43,9 @@
 		"vitest": "^3.0.0"
 	},
 	"dependencies": {
+		"@types/js-yaml": "^4.0.9",
 		"d3": "^7.9.0",
+		"js-yaml": "^4.1.0",
 		"snyk-nodejs-lockfile-parser": "^2.0.0"
 	}
 }

@@ -1,12 +1,19 @@
 <script lang="ts">
   import DependencyGraph from '$lib/components/DependencyGraph.svelte';
-  import { parseLockfile, type DependencyGraphData } from '$lib/utils/lockfileParser';
+  import { parseLockfile } from '$lib/utils/lockfileParser';
+  import type { DependencyGraphData } from '$lib/types';
 
   let lockfileContent = $state<string | null>(null);
   let graphData = $state<DependencyGraphData | null>(null);
   let errorMsg = $state<string | null>(null);
   let isLoading = $state<boolean>(false);
   let searchTerm = $state('');
+
+  const acceptedFileTypes = [
+    'package-lock.json',
+    'yarn.lock',
+    'pnpm-lock.yaml' // Add PNPM lock file
+  ];
 
   async function handleFileSelect(event: Event) {
     const input = event.target as HTMLInputElement;
@@ -23,8 +30,7 @@
       try {
         const content = e.target?.result as string;
         lockfileContent = content;
-        const lockfileType = file.name.endsWith('yarn.lock') ? 'yarn' : 'package-lock';
-        graphData = await parseLockfile(content, lockfileType);
+        graphData = await parseLockfile(content, file.name);
       } catch (err: any) {
         errorMsg = `Error parsing ${file.name}: ${err.message}`;
         console.error(err);
@@ -73,8 +79,8 @@
       class="block w-full text-sm text-gray-900 border border-gray-300 rounded-lg cursor-pointer bg-gray-50 dark:text-gray-400 focus:outline-none dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400"
       id="lockfile_input"
       type="file"
-      accept=".json,.lock"
-      on:change={handleFileSelect}
+      accept=".json,.lock,.yaml"
+      onchange={handleFileSelect}
       disabled={isLoading}
     />
     {#if isLoading}
@@ -83,6 +89,11 @@
     {#if errorMsg}
       <p class="mt-2 text-red-500">{errorMsg}</p>
     {/if}
+  </div>
+
+  <!-- Update display text if needed -->
+  <div class="text-center text-sm text-gray-500 mt-2">
+    Supported: package-lock.json, yarn.lock, pnpm-lock.yaml
   </div>
 
   {#if graphData}
@@ -97,7 +108,7 @@
       <!-- Export button -->
       <button 
         class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600"
-        on:click={exportAsSVG}
+        onclick={exportAsSVG}
       >
         Export as SVG
       </button>
