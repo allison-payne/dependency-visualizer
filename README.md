@@ -1,19 +1,20 @@
 # Node.js Dependency Visualizer
 
-An interactive web application for visualizing Node.js dependency graphs from package-lock.json and yarn.lock files.
+An interactive web application for visualizing Node.js dependency graphs from package-lock.json, pnpm-lock.yml and yarn.lock files.
 
 ![Dependency Graph Screenshot](screenshot.png)
 
 ## Features
 
-- Upload and parse package-lock.json or yarn.lock files
-- Interactive visualization using D3.js force-directed graph
-- Color-coded dependencies based on type (production, development, peer, optional)
-- Highlight version conflicts to identify potential issues
-- Search functionality to find specific packages
-- Zoom, pan and drag controls for easy navigation
-- Export visualizations as SVG or PNG
-- Accessible alternative table view
+- Interactive visualization of Node.js dependency graphs
+- Support for multiple lockfile formats:
+  - package-lock.json (npm)
+  - yarn.lock (Yarn)
+  - pnpm-lock.yaml (pnpm)
+- Force-directed graph layout using D3.js
+- Zoom, pan, and drag interactions
+- Detailed dependency information on hover
+- Filter and search functionality
 
 ## Supported Lock Files
 
@@ -78,13 +79,12 @@ yarn start
 
 ## Usage
 
-1. Click "Upload Lockfile" and select your package-lock.json or yarn.lock file
-2. The dependency graph will be visualized automatically
-3. Use the search box to find specific packages
-4. Toggle between different view options using the controls
-5. Hover over nodes to see detailed information
-6. Click and drag nodes to rearrange the graph
-7. Use the mouse wheel to zoom in/out
+1. Upload your lockfile (package-lock.json, yarn.lock, or pnpm-lock.yaml) using the file selector
+2. Explore your dependency graph using mouse or touch interactions:
+   - Zoom: Mouse wheel / pinch gesture
+   - Pan: Click and drag on empty space / touch and drag
+   - Move nodes: Click and drag nodes / touch and drag nodes
+   - View details: Hover over nodes to see dependency information
 
 ## License
 

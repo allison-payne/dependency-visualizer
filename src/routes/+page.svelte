@@ -1,14 +1,16 @@
 <script lang="ts">
-  import DependencyGraph from '$lib/components/DependencyGraph.svelte';
   import { parseLockfile } from '$lib/utils/lockfileParser';
-  import type { DependencyGraphData } from '$lib/types';
-
+  import DependencyGraph from '$lib/components/DependencyGraph.svelte';
+  import AccessibleTable from '$lib/components/AccessibleTable.svelte';
+	import type { DependencyGraphData } from '$lib/types';
+  
   let lockfileContent = $state<string | null>(null);
   let graphData = $state<DependencyGraphData | null>(null);
   let errorMsg = $state<string | null>(null);
   let isLoading = $state<boolean>(false);
   let searchTerm = $state('');
-
+  let showTableView = $state(false);
+  
   const acceptedFileTypes = [
     'package-lock.json',
     'yarn.lock',
@@ -30,6 +32,15 @@
       try {
         const content = e.target?.result as string;
         lockfileContent = content;
+        
+        // Determine lockfile type based on file extension
+        let lockfileType: 'package-lock' | 'yarn' | 'pnpm' = 'package-lock';
+        if (file.name.endsWith('yarn.lock')) {
+          lockfileType = 'yarn';
+        } else if (file.name.endsWith('pnpm-lock.yaml')) {
+          lockfileType = 'pnpm';
+        }
+        
         graphData = await parseLockfile(content, file.name);
       } catch (err: any) {
         errorMsg = `Error parsing ${file.name}: ${err.message}`;
@@ -45,107 +56,75 @@
     reader.readAsText(file);
   }
 
-  // Function to export the graph as SVG
-  function exportAsSVG() {
-    if (!document.querySelector('.chart-container svg')) {
-      return;
-    }
-    
-    const svgElement = document.querySelector('.chart-container svg')!;
-    const svgData = new XMLSerializer().serializeToString(svgElement);
-    const svgBlob = new Blob([svgData], {type: 'image/svg+xml;charset=utf-8'});
-    const svgUrl = URL.createObjectURL(svgBlob);
-    
-    const downloadLink = document.createElement('a');
-    downloadLink.href = svgUrl;
-    downloadLink.download = 'dependency-graph.svg';
-    document.body.appendChild(downloadLink);
-    downloadLink.click();
-    document.body.removeChild(downloadLink);
+  // Toggle between graph and table view
+  function toggleView() {
+    showTableView = !showTableView;
   }
 </script>
 
-<div class="container mx-auto p-4">
-  <header class="mb-6">
-    <h1 class="text-3xl font-bold mb-2">Node.js Dependency Visualizer</h1>
-    <p class="text-gray-600">Upload a package-lock.json or yarn.lock file to visualize your project dependencies</p>
-  </header>
+<div class="container mx-auto px-4 py-8">
+  <h1 class="text-3xl font-bold mb-6">Dependency Graph Visualizer</h1>
   
-  <div class="mb-6">
-    <label class="block mb-2 text-sm font-medium text-gray-900 dark:text-white" for="lockfile_input">
-      Upload Lockfile
-    </label>
+  <div class="mb-4">
+    <label class="block mb-2 text-sm font-medium text-gray-900 dark:text-white" for="lockfile_input">Upload Lockfile</label>
     <input
       class="block w-full text-sm text-gray-900 border border-gray-300 rounded-lg cursor-pointer bg-gray-50 dark:text-gray-400 focus:outline-none dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400"
       id="lockfile_input"
       type="file"
       accept=".json,.lock,.yaml"
-      onchange={handleFileSelect}
+      on:change={handleFileSelect}
       disabled={isLoading}
+      aria-describedby="file-input-help"
     />
-    {#if isLoading}
-      <p class="mt-2 text-blue-500">Loading and parsing the dependency graph...</p>
-    {/if}
-    {#if errorMsg}
-      <p class="mt-2 text-red-500">{errorMsg}</p>
-    {/if}
+    <p id="file-input-help" class="mt-1 text-sm text-gray-500 dark:text-gray-300">
+      Upload a package-lock.json, yarn.lock, or pnpm-lock.yaml file to visualize dependencies.
+    </p>
   </div>
-
-  <!-- Update display text if needed -->
-  <div class="text-center text-sm text-gray-500 mt-2">
-    Supported: package-lock.json, yarn.lock, pnpm-lock.yaml
-  </div>
-
+  
+  {#if isLoading}
+    <div class="text-center py-10" aria-live="polite" role="status">
+      <p>Loading your dependency graph...</p>
+      <div class="mt-4 inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-blue-600 border-r-transparent align-[-0.125em]"></div>
+    </div>
+  {/if}
+  
+  {#if errorMsg}
+    <div class="p-4 mb-4 text-red-800 bg-red-100 rounded-lg dark:bg-red-800 dark:text-red-200" role="alert" aria-live="assertive">
+      <p>{errorMsg}</p>
+    </div>
+  {/if}
+  
   {#if graphData}
-    <div class="mb-4 flex flex-wrap gap-2 items-center">
-      <input
-        type="search"
-        placeholder="Search packages..."
-        bind:value={searchTerm}
-        class="p-2 border rounded flex-1"
-      />
+    <div class="mb-4 flex justify-between items-center">
+      <div>
+        <input
+          type="search"
+          placeholder="Search packages..."
+          bind:value={searchTerm}
+          class="p-2 border rounded"
+          aria-label="Search for packages"
+        />
+      </div>
       
-      <!-- Export button -->
       <button 
-        class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600"
-        onclick={exportAsSVG}
+        class="px-4 py-2 text-white bg-blue-600 rounded hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+        on:click={toggleView}
+        aria-pressed={showTableView}
       >
-        Export as SVG
+        {showTableView ? 'Show Graph View' : 'Show Accessible Table View'}
       </button>
     </div>
     
-    <DependencyGraph data={graphData} {searchTerm} />
+    {#if showTableView}
+      <AccessibleTable data={graphData} />
+    {:else}
+      <DependencyGraph data={graphData} {searchTerm} />
+    {/if}
     
-    <!-- Accessible table alternative -->
-    <div class="mt-6">
-      <details>
-        <summary class="cursor-pointer text-lg font-medium mb-2">
-          View Dependencies as Table (Accessible Alternative)
-        </summary>
-        <div class="overflow-x-auto">
-          <table class="min-w-full bg-white border border-gray-200">
-            <caption class="sr-only">Node.js Package Dependencies</caption>
-            <thead>
-              <tr>
-                <th class="px-4 py-2 border">Package</th>
-                <th class="px-4 py-2 border">Version</th>
-                <th class="px-4 py-2 border">Type</th>
-                <th class="px-4 py-2 border">Multiple Versions?</th>
-              </tr>
-            </thead>
-            <tbody>
-              {#each graphData.nodes as node}
-                <tr>
-                  <td class="px-4 py-2 border">{node.name}</td>
-                  <td class="px-4 py-2 border">{node.version}</td>
-                  <td class="px-4 py-2 border">{node.type || 'prod'}</td>
-                  <td class="px-4 py-2 border">{node.hasMultipleVersions ? 'Yes' : 'No'}</td>
-                </tr>
-              {/each}
-            </tbody>
-          </table>
-        </div>
-      </details>
+    <!-- Additional information for screen readers -->
+    <div class="sr-only" aria-live="polite">
+      Dependency graph loaded with {graphData.nodes.length} packages and {graphData.links.length} dependencies.
+      {showTableView ? 'Currently showing table view.' : 'Currently showing graph visualization.'}
     </div>
   {/if}
 </div>
