@@ -27,55 +27,6 @@
 	let focusIndex = $state(-1); // Track keyboard focus position
 	let showLegend = $state(true);
 
-	// Initialize state when data prop changes
-	$effect(() => {
-		console.log('Data prop changed, updating state...');
-		// Create copies to avoid mutating the prop directly and ensure reactivity
-		nodes = data.nodes.map((n: any) => ({ ...n }));
-		links = data.links.map((l: any) => ({ ...l }));
-
-		// Restart simulation if it already exists and nodes/links change
-		if (simulation) {
-			console.log('Restarting simulation with new data.');
-			simulation.nodes(nodes);
-			simulation.force<d3.ForceLink<NodeType, LinkType>>('link')?.links(links);
-			simulation.alpha(0.3).restart(); // Reheat simulation
-		}
-	});
-
-	// Filter nodes based on search term
-	$effect(() => {
-		if (!searchTerm.trim() || !data) {
-			// If no search term, show all nodes from original data
-			nodes = data.nodes.map((n: any) => ({ ...n }));
-			links = data.links.map((l: any) => ({ ...l }));
-		} else {
-			const lowerSearchTerm = searchTerm.toLowerCase();
-			const matchingNodeIds = new Set(
-				data.nodes
-					.filter((node: { id: string }) => node.id.toLowerCase().includes(lowerSearchTerm))
-					.map((node: { id: any }) => node.id)
-			);
-
-			// Only show matching nodes
-			nodes = data.nodes.filter((node: { id: unknown }) => matchingNodeIds.has(node.id));
-
-			// Only show links between matching nodes
-			const filteredNodeIds = new Set(nodes.map((n) => n.id));
-			links = data.links.filter(
-				(link: { source: string; target: string }) =>
-					filteredNodeIds.has(link.source as string) && filteredNodeIds.has(link.target as string)
-			);
-		}
-
-		// Restart simulation with filtered data
-		if (simulation) {
-			simulation.nodes(nodes);
-			simulation.force<d3.ForceLink<NodeType, LinkType>>('link')?.links(links);
-			simulation.alpha(0.3).restart();
-		}
-	});
-
 	// Get color based on node type
 	function getNodeColor(node: NodeType): string {
 		if (node.name === 'root') return '#6b7280'; // gray-500
@@ -145,79 +96,6 @@
 		d.fx = null;
 		d.fy = null;
 	}
-
-	onMount(() => {
-		if (!svgElement) return;
-
-		const nodeRadius = 10;
-		const linkDistance = 50;
-
-		// Create the simulation
-		simulation = d3
-			.forceSimulation<NodeType>(nodes)
-			.force(
-				'link',
-				d3
-					.forceLink<NodeType, LinkType>(links)
-					.id((d) => d.id)
-					.distance(linkDistance)
-					.strength(0.6)
-			)
-			.force('charge', d3.forceManyBody<NodeType>().strength(-150))
-			.force('collide', d3.forceCollide<NodeType>().radius(nodeRadius + 2))
-			.force('center', d3.forceCenter(width / 2, height / 2))
-			.velocityDecay(0.4)
-			.alphaMin(0.001);
-
-		// Define the tick handler
-		simulation.on('tick', () => {
-			nodes = simulation!.nodes(); // Re-assign to trigger reactivity
-		});
-
-		// Zoom behavior
-		zoomBehavior = d3
-			.zoom<SVGSVGElement, unknown>()
-			.scaleExtent([0.1, 8])
-			.on('zoom', (event: d3.D3ZoomEvent<SVGSVGElement, unknown>) => {
-				currentTransform = event.transform;
-			});
-
-		// Apply the zoom behavior to the SVG element
-		d3.select(svgElement).call(zoomBehavior);
-
-		console.log('Simulation initialized.');
-
-		// Make the SVG element keyboard focusable
-		if (svgElement) {
-			svgElement.setAttribute('tabindex', '0');
-			svgElement.addEventListener('keydown', handleKeyDown);
-		}
-
-		// Clean up event listeners
-		return () => {
-			if (svgElement) {
-				svgElement.removeEventListener('keydown', handleKeyDown);
-			}
-			if (simulation) simulation.stop();
-			console.log('Simulation stopped.');
-		};
-	});
-
-	// Apply drag behavior after nodes are rendered
-	$effect(() => {
-		if (svgElement && nodes.length > 0) {
-			const dragBehavior = d3
-				.drag<SVGCircleElement, NodeType>()
-				.on('start', dragstarted)
-				.on('drag', dragged)
-				.on('end', dragended);
-
-			d3.select(svgElement)
-				.selectAll<SVGCircleElement, NodeType>('circle.node')
-				.data(nodes, (d) => d.id)
-				.call(dragBehavior);
-		}
-	});
 
 	// Add a function to toggle the legend visibility
 	function toggleLegend() {
@@ -291,6 +169,145 @@
 	function toggleNodeSelection(node: NodeType) {
 		selectedNode = selectedNode === node ? null : node;
 	}
+
+	// Initialize state when data prop changes
+	$effect(() => {
+		console.log('Data prop changed, updating state...');
+		// Create copies to avoid mutating the prop directly and ensure reactivity
+		nodes = data.nodes.map((n: any) => ({ ...n }));
+		links = data.links.map((l: any) => ({ ...l }));
+
+		// Restart simulation if it already exists and nodes/links change
+		if (simulation) {
+			console.log('Restarting simulation with new data.');
+			simulation.nodes(nodes);
+			simulation.force<d3.ForceLink<NodeType, LinkType>>('link')?.links(links);
+			simulation.alpha(0.3).restart(); // Reheat simulation
+		}
+	});
+
+	// Filter nodes based on search term
+	$effect(() => {
+		if (!searchTerm.trim() || !data) {
+			// If no search term, show all nodes from original data
+			nodes = data.nodes.map((n: any) => ({ ...n }));
+			links = data.links.map((l: any) => ({ ...l }));
+		} else {
+			const lowerSearchTerm = searchTerm.toLowerCase();
+			const matchingNodeIds = new Set(
+				data.nodes
+					.filter((node: { id: string }) => node.id.toLowerCase().includes(lowerSearchTerm))
+					.map((node: { id: any }) => node.id)
+			);
+
+			// Only show matching nodes
+			nodes = data.nodes.filter((node: { id: unknown }) => matchingNodeIds.has(node.id));
+
+			// Only show links between matching nodes
+			const filteredNodeIds = new Set(nodes.map((n) => n.id));
+			links = data.links.filter(
+				(link: { source: string; target: string }) =>
+					filteredNodeIds.has(link.source as string) && filteredNodeIds.has(link.target as string)
+			);
+		}
+
+		// Restart simulation with filtered data
+		if (simulation) {
+			simulation.nodes(nodes);
+			simulation.force<d3.ForceLink<NodeType, LinkType>>('link')?.links(links);
+			simulation.alpha(0.3).restart();
+		}
+	});
+
+	// When data changes (filtering occurs)
+	$effect(() => {
+		// Stop any current simulation first
+		if (simulation) {
+			simulation.stop();
+			
+			// Only restart if we have enough nodes to warrant simulation
+			if (data.nodes.length > 1) {
+				simulation.nodes(data.nodes);
+				simulation.force<d3.ForceLink<NodeType, LinkType>>('link')?.links(data.links);
+				
+				// Use reduced alpha for faster stabilization on filter changes
+				simulation.alpha(0.3).restart();
+			}
+		}
+	});
+
+	onMount(() => {
+		if (!svgElement) return;
+
+		const nodeRadius = 10;
+		const linkDistance = 50;
+
+		// Create the simulation
+		simulation = d3
+			.forceSimulation<NodeType>(nodes)
+			.force(
+				'link',
+				d3
+					.forceLink<NodeType, LinkType>(links)
+					.id((d) => d.id)
+					.distance(linkDistance)
+					.strength(0.6)
+			)
+			.force('charge', d3.forceManyBody<NodeType>().strength(-150))
+			.force('collide', d3.forceCollide<NodeType>().radius(nodeRadius + 2))
+			.force('center', d3.forceCenter(width / 2, height / 2))
+			.velocityDecay(0.4)
+			.alphaMin(0.001);
+
+		// Define the tick handler
+		simulation.on('tick', () => {
+			nodes = simulation!.nodes(); // Re-assign to trigger reactivity
+		});
+
+		// Zoom behavior
+		zoomBehavior = d3
+			.zoom<SVGSVGElement, unknown>()
+			.scaleExtent([0.1, 8])
+			.on('zoom', (event: d3.D3ZoomEvent<SVGSVGElement, unknown>) => {
+				currentTransform = event.transform;
+			});
+
+		// Apply the zoom behavior to the SVG element
+		d3.select(svgElement).call(zoomBehavior);
+
+		console.log('Simulation initialized.');
+
+		// Make the SVG element keyboard focusable
+		if (svgElement) {
+			svgElement.setAttribute('tabindex', '0');
+			svgElement.addEventListener('keydown', handleKeyDown);
+		}
+
+		// Clean up event listeners
+		return () => {
+			if (svgElement) {
+				svgElement.removeEventListener('keydown', handleKeyDown);
+			}
+			if (simulation) simulation.stop();
+			console.log('Simulation stopped.');
+		};
+	});
+
+	// Apply drag behavior after nodes are rendered
+	$effect(() => {
+		if (svgElement && nodes.length > 0) {
+			const dragBehavior = d3
+				.drag<SVGCircleElement, NodeType>()
+				.on('start', dragstarted)
+				.on('drag', dragged)
+				.on('end', dragended);
+
+			d3.select(svgElement)
+				.selectAll<SVGCircleElement, NodeType>('circle.node')
+				.data(nodes, (d) => d && d.id)
+				.call(dragBehavior);
+		}
+	});
 </script>
 
 <div class="chart-container relative w-full h-[600px] border border-gray-300 overflow-hidden">
@@ -398,7 +415,8 @@
 						data-index={i}
 						tabindex="0"
 						onclick={() => toggleNodeSelection(node)}
-						onkeydown={(e) => e.key === 'Enter' || e.key === ' ' ? toggleNodeSelection(node) : null}
+						onkeydown={(e) =>
+							e.key === 'Enter' || e.key === ' ' ? toggleNodeSelection(node) : null}
 						onmouseenter={(e) => showTooltip(e, node)}
 						onmouseleave={hideTooltip}
 						aria-label={`${node.name} version ${node.version}`}

@@ -2,13 +2,13 @@
   import { parseLockfile } from '$lib/utils/lockfileParser';
   import DependencyGraph from '$lib/components/DependencyGraph.svelte';
   import AccessibleTable from '$lib/components/AccessibleTable.svelte';
+  import Controls from '$lib/components/Controls.svelte';
 	import type { DependencyGraphData } from '$lib/types';
   
   let lockfileContent = $state<string | null>(null);
   let graphData = $state<DependencyGraphData | null>(null);
   let errorMsg = $state<string | null>(null);
   let isLoading = $state<boolean>(false);
-  let searchTerm = $state('');
   let showTableView = $state(false);
   
   const acceptedFileTypes = [
@@ -32,14 +32,6 @@
       try {
         const content = e.target?.result as string;
         lockfileContent = content;
-        
-        // Determine lockfile type based on file extension
-        let lockfileType: 'package-lock' | 'yarn' | 'pnpm' = 'package-lock';
-        if (file.name.endsWith('yarn.lock')) {
-          lockfileType = 'yarn';
-        } else if (file.name.endsWith('pnpm-lock.yaml')) {
-          lockfileType = 'pnpm';
-        }
         
         graphData = await parseLockfile(content, file.name);
       } catch (err: any) {
@@ -72,7 +64,7 @@
       id="lockfile_input"
       type="file"
       accept=".json,.lock,.yaml"
-      on:change={handleFileSelect}
+      onchange={handleFileSelect}
       disabled={isLoading}
       aria-describedby="file-input-help"
     />
@@ -96,19 +88,9 @@
   
   {#if graphData}
     <div class="mb-4 flex justify-between items-center">
-      <div>
-        <input
-          type="search"
-          placeholder="Search packages..."
-          bind:value={searchTerm}
-          class="p-2 border rounded"
-          aria-label="Search for packages"
-        />
-      </div>
-      
       <button 
         class="px-4 py-2 text-white bg-blue-600 rounded hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
-        on:click={toggleView}
+        onclick={toggleView}
         aria-pressed={showTableView}
       >
         {showTableView ? 'Show Graph View' : 'Show Accessible Table View'}
@@ -118,7 +100,7 @@
     {#if showTableView}
       <AccessibleTable data={graphData} />
     {:else}
-      <DependencyGraph data={graphData} {searchTerm} />
+      <Controls graphData={graphData} />
     {/if}
     
     <!-- Additional information for screen readers -->
