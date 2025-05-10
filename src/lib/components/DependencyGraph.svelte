@@ -4,9 +4,8 @@
 	import { onMount, onDestroy } from 'svelte';
 	import Legend from './Legend.svelte';
 
-	const { data, searchTerm = '' } = $props<{
+	const { data = '' } = $props<{
 		data: DependencyGraphData;
-		searchTerm?: string;
 	}>();
 
 	let nodes = $state<NodeType[]>(data.nodes);
@@ -26,6 +25,8 @@
 	let selectedNode = $state<NodeType | null>(null);
 	let focusIndex = $state(-1); // Track keyboard focus position
 	let showLegend = $state(true);
+	// Add a dependency tracking variable to prevent loops
+	let lastDataId = $state('');
 
 	// Get color based on node type
 	function getNodeColor(node: NodeType): string {
@@ -170,69 +171,29 @@
 		selectedNode = selectedNode === node ? null : node;
 	}
 
-	// Initialize state when data prop changes
+	// Combine your effects into one that handles all data updates
 	$effect(() => {
-		console.log('Data prop changed, updating state...');
-		// Create copies to avoid mutating the prop directly and ensure reactivity
-		nodes = data.nodes.map((n: any) => ({ ...n }));
-		links = data.links.map((l: any) => ({ ...l }));
+		// Generate a better ID that includes node content
+		const nodeIds = data.nodes.map((n: NodeType) => n.id).join(',');
+		const currentDataId = `${data.nodes.length}-${data.links.length}-${nodeIds.substring(0, 100)}`;
 
-		// Restart simulation if it already exists and nodes/links change
-		if (simulation) {
-			console.log('Restarting simulation with new data.');
-			simulation.nodes(nodes);
-			simulation.force<d3.ForceLink<NodeType, LinkType>>('link')?.links(links);
-			simulation.alpha(0.3).restart(); // Reheat simulation
-		}
-	});
+		// Skip if data hasn't actually changed
+		if (currentDataId === lastDataId) return;
+		lastDataId = currentDataId;
 
-	// Filter nodes based on search term
-	$effect(() => {
-		if (!searchTerm.trim() || !data) {
-			// If no search term, show all nodes from original data
-			nodes = data.nodes.map((n: any) => ({ ...n }));
-			links = data.links.map((l: any) => ({ ...l }));
-		} else {
-			const lowerSearchTerm = searchTerm.toLowerCase();
-			const matchingNodeIds = new Set(
-				data.nodes
-					.filter((node: { id: string }) => node.id.toLowerCase().includes(lowerSearchTerm))
-					.map((node: { id: any }) => node.id)
-			);
+		console.log('Data changed, updating simulation...');
 
-			// Only show matching nodes
-			nodes = data.nodes.filter((node: { id: unknown }) => matchingNodeIds.has(node.id));
+		if (simulation) simulation.stop();
 
-			// Only show links between matching nodes
-			const filteredNodeIds = new Set(nodes.map((n) => n.id));
-			links = data.links.filter(
-				(link: { source: string; target: string }) =>
-					filteredNodeIds.has(link.source as string) && filteredNodeIds.has(link.target as string)
-			);
-		}
+		// Update local state
+		nodes = data.nodes.map((n: NodeType) => ({ ...n }));
+		links = data.links.map((l: LinkType) => ({ ...l }));
 
-		// Restart simulation with filtered data
-		if (simulation) {
+		// Restart simulation if it exists
+		if (simulation && nodes.length > 1) {
 			simulation.nodes(nodes);
 			simulation.force<d3.ForceLink<NodeType, LinkType>>('link')?.links(links);
 			simulation.alpha(0.3).restart();
-		}
-	});
-
-	// When data changes (filtering occurs)
-	$effect(() => {
-		// Stop any current simulation first
-		if (simulation) {
-			simulation.stop();
-			
-			// Only restart if we have enough nodes to warrant simulation
-			if (data.nodes.length > 1) {
-				simulation.nodes(data.nodes);
-				simulation.force<d3.ForceLink<NodeType, LinkType>>('link')?.links(data.links);
-				
-				// Use reduced alpha for faster stabilization on filter changes
-				simulation.alpha(0.3).restart();
-			}
 		}
 	});
 
@@ -261,16 +222,17 @@
 
 		// Define the tick handler
 		simulation.on('tick', () => {
-			nodes = simulation!.nodes(); // Re-assign to trigger reactivity
+			// Use a microtask to update nodes after the current tick
+			queueMicrotask(() => {
+				nodes = [...simulation!.nodes()]; // Create new array reference to trigger reactivity
+			});
 		});
 
 		// Zoom behavior
 		zoomBehavior = d3
 			.zoom<SVGSVGElement, unknown>()
 			.scaleExtent([0.1, 8])
-			.on('zoom', (event: d3.D3ZoomEvent<SVGSVGElement, unknown>) => {
-				currentTransform = event.transform;
-			});
+			.on('zoom', handleZoom);
 
 		// Apply the zoom behavior to the SVG element
 		d3.select(svgElement).call(zoomBehavior);
@@ -313,7 +275,10 @@
 <div class="chart-container relative w-full h-[600px] border border-gray-300 overflow-hidden">
 	<!-- Control buttons -->
 	<div class="absolute top-4 left-4 z-10 flex gap-2">
-		<button class="bg-white dark:bg-gray-800 p-2 rounded shadow-md text-xs" onclick={toggleLegend}>
+		<button
+			class="bg-white dark:bg-gray-800 p-2 rounded shadow-md text-xs text-gray-900 dark:text-white"
+			onclick={toggleLegend}
+		>
 			{showLegend ? 'Hide' : 'Show'} Legend
 		</button>
 	</div>

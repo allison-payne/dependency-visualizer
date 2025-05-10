@@ -17,7 +17,7 @@
 </script>
 
 <div
-	class="legend absolute {positionClasses[position as PositionType]} p-4 bg-white dark:bg-gray-800 shadow-md rounded z-10"
+	class="legend absolute {positionClasses[position as PositionType]} p-4 bg-white dark:bg-gray-800 shadow-md rounded z-10 text-gray-900 dark:text-white"
 >
 	<h3 class="font-bold mb-2 text-sm">Legend</h3>
 
