@@ -1,7 +1,7 @@
 # Node.js Dependency Visualizer
 
 An interactive web application for visualizing Node.js dependency graphs from package-lock.json, pnpm-lock.yml and yarn.lock files. Built with SvelteKit, D3.js, TypeScript, and Tailwind CSS.
-
+![Dependency Graph 1.1 Github Screenshot](screenshot-github.png)
 ![Dependency Graph 1.0 Input Screenshot](screenshot-input.png)
 ![Dependency Graph 1.0 Filter Screenshot](screenshot-filter.png)
 ![Dependency Graph 1.0 Graph Screenshot](screenshot-graph.png)
@@ -15,6 +15,9 @@ An interactive web application for visualizing Node.js dependency graphs from pa
   - package-lock.json (npm)
   - yarn.lock (Yarn)
   - pnpm-lock.yaml (pnpm)
+- Multiple ways to load dependency data:
+  - Upload local lockfiles from your device
+  - Fetch directly from GitHub repositories
 - Force-directed graph layout using D3.js
 - Advanced visualization features:
   - Visual distinction between dependency types (production, development, peer, optional)
@@ -96,7 +99,10 @@ yarn start
 
 ## Usage
 
-1. Upload your lockfile (package-lock.json, yarn.lock, or pnpm-lock.yaml) using the file selector
+1. **Load your dependency data** using one of two methods:
+   - **Upload from your device**: Choose a lockfile (package-lock.json, yarn.lock, or pnpm-lock.yaml) using the file selector
+   - **Fetch from GitHub**: Enter a GitHub repository URL (or just 'owner/repo'), specify branch and lockfile type
+
 2. Explore your dependency graph using mouse, touch, or keyboard interactions:
    - **Zoom**: Mouse wheel / pinch gesture / zoom buttons
    - **Pan**: Click and drag on empty space / touch and drag
@@ -115,6 +121,19 @@ One of the key features is the ability to detect and highlight version conflicts
 - The Version Conflicts panel shows statistics about packages with multiple versions
 - Enable "Highlight version conflicts" to filter and show only conflicting packages
 - Tooltips for conflict nodes show all available versions in your dependency tree
+
+## GitHub Integration
+
+You can load dependency lockfiles directly from GitHub repositories:
+
+1. Enter a GitHub repository URL in the format:
+   - Full URL: `https://github.com/owner/repo`
+   - Simple format: `owner/repo`
+2. Specify the branch (defaults to `main`)
+3. Select the lockfile type (defaults to `package-lock.json`)
+4. Click "Fetch Lockfile" to retrieve and visualize the dependencies
+
+This allows you to explore dependency structures of open-source projects without cloning the repository.
 
 ## License
 

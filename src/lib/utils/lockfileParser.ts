@@ -442,15 +442,51 @@ export function isTypeDefinition(node: NodeType): boolean {
   return node.name.startsWith('@types') || (node.type === 'dev' && node.name.endsWith('-types'));
 }
 
-export function parseLockfile(content: string, filename: string): DependencyGraphData {
-  if (filename.includes('package-lock.json')) {
-    return parsePackageLock(content);
-  } else if (filename.includes('yarn.lock')) {
-    return parseYarnLock(content);
-  } else if (filename.includes('pnpm-lock.yaml')) {
-    return parsePnpmLock(content);
-  } else {
-    throw new Error('Unsupported lock file format');
+export async function parseLockfile(content: string, filename: string): Promise<DependencyGraphData> {
+  try {
+    // Determine the lockfile type from the filename
+    let lockfileType: 'package-lock' | 'yarn' | 'pnpm';
+    
+    if (typeof filename === 'string') {
+      if (filename.endsWith('yarn.lock') || filename.includes('yarn.lock')) {
+        lockfileType = 'yarn';
+      } else if (filename.endsWith('pnpm-lock.yaml') || filename.includes('pnpm-lock.yaml')) {
+        lockfileType = 'pnpm';
+      } else if (filename.endsWith('package-lock.json') || filename.includes('package-lock.json')) {
+        lockfileType = 'package-lock';
+      } else {
+        // Try to infer content type from content
+        if (content.includes('"lockfileVersion":')) {
+          lockfileType = 'package-lock';
+          console.log("Inferred package-lock.json format from content");
+        } else if (content.trim().startsWith('lockfileVersion:')) {
+          lockfileType = 'pnpm';
+          console.log("Inferred pnpm-lock.yaml format from content");
+        } else {
+          lockfileType = 'yarn';
+          console.log("Inferred yarn.lock format from content (default fallback)");
+        }
+      }
+    } else {
+      throw new Error('Invalid filename parameter');
+    }
+    
+    console.log(`Parsing ${lockfileType} lockfile`);
+    
+    // Parse according to the determined type
+    switch (lockfileType) {
+      case 'package-lock':
+        return parsePackageLock(content);
+      case 'yarn':
+        return parseYarnLock(content);
+      case 'pnpm':
+        return parsePnpmLock(content);
+      default:
+        throw new Error('Unsupported lock file format');
+    }
+  } catch (error: any) {
+    console.error('Error parsing lockfile:', error);
+    throw new Error(`Failed to parse lockfile: ${error.message}`);
   }
 }
 
