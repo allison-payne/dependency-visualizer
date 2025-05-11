@@ -10,6 +10,7 @@ export interface NodeType extends SimulationNodeDatum {
   hasMultipleVersions?: boolean; // Add flag for version conflicts
   dependencies?: string[];
   level?: number;
+  isTypeDefinition?: boolean; // Flag for type definitions
 }
 
 // Define custom link type extending D3's SimulationLinkDatum

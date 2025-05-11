@@ -14,7 +14,7 @@
   const acceptedFileTypes = [
     'package-lock.json',
     'yarn.lock',
-    'pnpm-lock.yaml' // Add PNPM lock file
+    'pnpm-lock.yaml'
   ];
 
   async function handleFileSelect(event: Event) {
@@ -48,65 +48,108 @@
     reader.readAsText(file);
   }
 
-  // Toggle between graph and table view
   function toggleView() {
     showTableView = !showTableView;
   }
 </script>
 
-<div class="container mx-auto px-4 py-8">
-  <h1 class="text-3xl font-bold mb-6">Dependency Graph Visualizer</h1>
-  
-  <div class="mb-4">
-    <label class="block mb-2 text-sm font-medium text-gray-900 dark:text-white" for="lockfile_input">Upload Lockfile</label>
-    <input
-      class="block w-full text-sm text-gray-900 border border-gray-300 rounded-lg cursor-pointer bg-gray-50 dark:text-gray-400 focus:outline-none dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400"
-      id="lockfile_input"
-      type="file"
-      accept=".json,.lock,.yaml"
-      onchange={handleFileSelect}
-      disabled={isLoading}
-      aria-describedby="file-input-help"
-    />
-    <p id="file-input-help" class="mt-1 text-sm text-gray-500 dark:text-gray-300">
-      Upload a package-lock.json, yarn.lock, or pnpm-lock.yaml file to visualize dependencies.
-    </p>
+<section class="space-y-6">
+  <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6">
+    <h2 class="text-xl font-bold mb-4 text-gray-900 dark:text-white">Upload Dependency File</h2>
+    
+    <div class="space-y-4">
+      <div class="flex flex-col">
+        <label class="block mb-2 text-sm font-medium text-gray-900 dark:text-white" for="lockfile_input">
+          Select a lockfile
+        </label>
+        <div class="flex flex-col sm:flex-row gap-4">
+          <input
+            class="block flex-grow text-sm text-gray-900 dark:text-gray-300
+                  border border-gray-300 dark:border-gray-600 rounded-lg cursor-pointer
+                  bg-gray-50 dark:bg-gray-700 focus:outline-none focus:border-blue-500 dark:focus:border-blue-400
+                  file:mr-4 file:py-2 file:px-4 file:border-0
+                  file:text-sm file:font-medium file:text-white
+                  file:bg-blue-600 dark:file:bg-blue-500 file:hover:bg-blue-700 dark:file:hover:bg-blue-600"
+            id="lockfile_input"
+            type="file"
+            accept=".json,.lock,.yaml"
+            onchange={handleFileSelect}
+            disabled={isLoading}
+            aria-describedby="file-input-help"
+          />
+        </div>
+        <p id="file-input-help" class="mt-2 text-sm text-gray-500 dark:text-gray-400">
+          Upload a package-lock.json, yarn.lock, or pnpm-lock.yaml file to visualize dependencies.
+        </p>
+      </div>
+      
+      {#if acceptedFileTypes.length > 0}
+        <div class="mt-2 flex flex-wrap gap-2">
+          {#each acceptedFileTypes as fileType}
+            <span class="px-2 py-1 text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200 rounded-full">
+              {fileType}
+            </span>
+          {/each}
+        </div>
+      {/if}
+    </div>
   </div>
-  
+
   {#if isLoading}
-    <div class="text-center py-10" aria-live="polite" role="status">
-      <p>Loading your dependency graph...</p>
-      <div class="mt-4 inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-blue-600 border-r-transparent align-[-0.125em]"></div>
+    <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-8 text-center" aria-live="polite" role="status">
+      <div class="flex flex-col items-center justify-center space-y-4">
+        <div class="h-10 w-10 animate-spin rounded-full border-4 border-blue-600 dark:border-blue-500 border-r-transparent"></div>
+        <p class="text-gray-700 dark:text-gray-300">Loading your dependency graph...</p>
+      </div>
     </div>
   {/if}
   
   {#if errorMsg}
-    <div class="p-4 mb-4 text-red-800 bg-red-100 rounded-lg dark:bg-red-800 dark:text-red-200" role="alert" aria-live="assertive">
-      <p>{errorMsg}</p>
+    <div class="bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 rounded-lg p-4" role="alert" aria-live="assertive">
+      <div class="flex">
+        <svg class="h-5 w-5 text-red-500 dark:text-red-400 mr-3 mt-0.5" viewBox="0 0 20 20" fill="currentColor">
+          <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zm-1 9a1 1 0 100-2 1 1 0 000 2z" clip-rule="evenodd"/>
+        </svg>
+        <p class="text-red-700 dark:text-red-300">{errorMsg}</p>
+      </div>
     </div>
   {/if}
   
   {#if graphData}
-    <div class="mb-4 flex justify-between items-center">
-      <button 
-        class="px-4 py-2 text-white bg-blue-600 rounded hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
-        onclick={toggleView}
-        aria-pressed={showTableView}
-      >
-        {showTableView ? 'Show Graph View' : 'Show Accessible Table View'}
-      </button>
+    <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md overflow-hidden">
+      <div class="p-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center">
+        <h2 class="text-xl font-bold text-gray-900 dark:text-white">Dependency Graph</h2>
+        <div class="flex space-x-2">
+          <button 
+            class="px-4 py-2 text-sm font-medium text-white bg-blue-600 dark:bg-blue-500 rounded-lg hover:bg-blue-700 dark:hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors"
+            onclick={toggleView}
+            aria-pressed={showTableView}
+          >
+            {showTableView ? 'Show Graph View' : 'Show Accessible Table View'}
+          </button>
+        </div>
+      </div>
+      
+      <div class="graph-container">
+        {#if showTableView}
+          <div class="p-4">
+            <AccessibleTable data={graphData} />
+          </div>
+        {:else}
+          <Controls graphData={graphData} />
+        {/if}
+      </div>
     </div>
     
-    {#if showTableView}
-      <AccessibleTable data={graphData} />
-    {:else}
-      <Controls graphData={graphData} />
-    {/if}
-    
-    <!-- Additional information for screen readers -->
     <div class="sr-only" aria-live="polite">
       Dependency graph loaded with {graphData.nodes.length} packages and {graphData.links.length} dependencies.
       {showTableView ? 'Currently showing table view.' : 'Currently showing graph visualization.'}
     </div>
   {/if}
-</div>
+</section>
+
+<style lang="postcss">
+  .graph-container {
+    min-height: 70vh;
+  }
+</style>

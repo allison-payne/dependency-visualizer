@@ -3,6 +3,7 @@
 	import * as d3 from 'd3';
 	import { onMount, onDestroy } from 'svelte';
 	import Legend from './Legend.svelte';
+	import { isTypeDefinition } from '$lib/utils/lockfileParser';
 
 	const { data = '' } = $props<{
 		data: DependencyGraphData;
@@ -11,22 +12,24 @@
 	let nodes = $state<NodeType[]>(data.nodes);
 	let links = $state<LinkType[]>(data.links);
 	let svgElement: SVGSVGElement | null = $state(null);
+	let containerElement: HTMLDivElement | null = $state(null);
 	let simulation: d3.Simulation<NodeType, LinkType> | null = null;
 	let currentTransform = $state(d3.zoomIdentity);
-	// Add this line to define zoomBehavior at the component level
 	let zoomBehavior: d3.ZoomBehavior<SVGSVGElement, unknown> | null = $state(null);
 	let width = $state(800);
 	let height = $state(600);
-	let tooltipData = $state<{ node: NodeType | null; x: number; y: number }>({
+	let tooltipData = $state<{ node: NodeType | null; x: number; y: number; svgX: number; svgY: number; }>({
 		node: null,
 		x: 0,
-		y: 0
+		y: 0,
+		svgX: 0,
+		svgY: 0
 	});
 	let selectedNode = $state<NodeType | null>(null);
 	let focusIndex = $state(-1); // Track keyboard focus position
 	let showLegend = $state(true);
-	// Add a dependency tracking variable to prevent loops
 	let lastDataId = $state('');
+	let resizeObserver: ResizeObserver | null = $state(null);
 
 	// Get color based on node type
 	function getNodeColor(node: NodeType): string {
@@ -51,7 +54,7 @@
 		if (node.hasMultipleVersions) {
 			return '#f97316'; // orange-500
 		}
-		return '#000000';
+		return 'currentColor'; // Use text color for stroke
 	}
 
 	// Get node stroke width
@@ -74,11 +77,27 @@
 	}
 
 	function showTooltip(event: MouseEvent, node: NodeType) {
-		tooltipData = { node, x: event.clientX, y: event.clientY };
+		if (!svgElement) return;
+		
+		// Get SVG coordinates - needed to position tooltip relative to SVG container
+		const svgRect = svgElement.getBoundingClientRect();
+		
+		// Calculate position relative to the SVG element while accounting for zoom/pan
+		const mouseX = event.clientX;
+		const mouseY = event.clientY;
+		
+		// Store both screen coordinates and SVG-relative coordinates
+		tooltipData = { 
+			node, 
+			x: mouseX, 
+			y: mouseY,
+			svgX: mouseX - svgRect.left,
+			svgY: mouseY - svgRect.top
+		};
 	}
 
 	function hideTooltip() {
-		tooltipData = { node: null, x: 0, y: 0 };
+		tooltipData = { node: null, x: 0, y: 0, svgX: 0, svgY: 0 };
 	}
 
 	function dragstarted(event: d3.D3DragEvent<SVGCircleElement, NodeType, any>, d: NodeType) {
@@ -171,6 +190,21 @@
 		selectedNode = selectedNode === node ? null : node;
 	}
 
+	// Update container dimensions when it resizes
+	function updateDimensions() {
+		if (!containerElement) return;
+		
+		const rect = containerElement.getBoundingClientRect();
+		width = rect.width;
+		height = rect.height;
+		
+		// Update force center when dimensions change
+		if (simulation) {
+			simulation.force('center', d3.forceCenter(width / 2, height / 2));
+			simulation.alpha(0.3).restart(); // Reheat the simulation to adjust to new dimensions
+		}
+	}
+
 	// Combine your effects into one that handles all data updates
 	$effect(() => {
 		// Generate a better ID that includes node content
@@ -186,7 +220,12 @@
 		if (simulation) simulation.stop();
 
 		// Update local state
-		nodes = data.nodes.map((n: NodeType) => ({ ...n }));
+		nodes = data.nodes.map((n: NodeType) => {
+			const node = { ...n };
+			// Set the isTypeDefinition property based on the helper function
+			node.isTypeDefinition = isTypeDefinition(node);
+			return node;
+		});
 		links = data.links.map((l: LinkType) => ({ ...l }));
 
 		// Restart simulation if it exists
@@ -198,7 +237,16 @@
 	});
 
 	onMount(() => {
-		if (!svgElement) return;
+		if (!svgElement || !containerElement) return;
+	
+		// Set initial dimensions based on container
+		updateDimensions();
+
+		// Watch for container resizes
+		resizeObserver = new ResizeObserver(entries => {
+			updateDimensions();
+		});
+		resizeObserver.observe(containerElement);
 
 		const nodeRadius = 10;
 		const linkDistance = 50;
@@ -251,6 +299,7 @@
 				svgElement.removeEventListener('keydown', handleKeyDown);
 			}
 			if (simulation) simulation.stop();
+			if (resizeObserver) resizeObserver.disconnect();
 			console.log('Simulation stopped.');
 		};
 	});
@@ -272,21 +321,21 @@
 	});
 </script>
 
-<div class="chart-container relative w-full h-[600px] border border-gray-300 overflow-hidden">
-	<!-- Control buttons -->
+<div class="chart-container w-full h-full min-h-[500px] relative" bind:this={containerElement}>
+	<!-- Control buttons: styled with more consistent colors and better positioning -->
 	<div class="absolute top-4 left-4 z-10 flex gap-2">
 		<button
-			class="bg-white dark:bg-gray-800 p-2 rounded shadow-md text-xs text-gray-900 dark:text-white"
+			class="bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-200 p-2 rounded shadow-md text-xs transition-colors hover:bg-gray-100 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
 			onclick={toggleLegend}
 		>
 			{showLegend ? 'Hide' : 'Show'} Legend
 		</button>
 	</div>
 
-	<!-- Add zoom controls -->
+	<!-- Zoom controls: styled with more consistent colors -->
 	<div class="absolute bottom-4 right-4 z-10 flex gap-2">
 		<button
-			class="bg-white dark:bg-gray-800 p-2 rounded shadow-md text-xs"
+			class="bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-200 p-2 rounded shadow-md text-xs hover:bg-gray-100 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors"
 			onclick={zoomIn}
 			aria-label="Zoom in"
 		>
@@ -301,7 +350,7 @@
 			</svg>
 		</button>
 		<button
-			class="bg-white dark:bg-gray-800 p-2 rounded shadow-md text-xs"
+			class="bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-200 p-2 rounded shadow-md text-xs hover:bg-gray-100 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors"
 			onclick={zoomOut}
 			aria-label="Zoom out"
 		>
@@ -316,7 +365,7 @@
 			</svg>
 		</button>
 		<button
-			class="bg-white dark:bg-gray-800 p-2 rounded shadow-md text-xs"
+			class="bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-200 p-2 rounded shadow-md text-xs hover:bg-gray-100 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors"
 			onclick={resetZoom}
 			aria-label="Reset zoom"
 		>
@@ -347,7 +396,7 @@
 		bind:this={svgElement}
 		{width}
 		{height}
-		class="block"
+		class="w-full h-full bg-gray-50 dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-700"
 		role="img"
 		aria-labelledby="graphTitle graphDesc"
 	>
@@ -360,7 +409,7 @@
 			<g class="links" aria-hidden="true">
 				{#each links as link (links.indexOf(link))}
 					<line
-						class="link stroke-gray-400"
+						class="link stroke-gray-400 dark:stroke-gray-600"
 						stroke-width={1}
 						x1={(link.source as NodeType).x}
 						y1={(link.source as NodeType).y}
@@ -384,24 +433,43 @@
 							e.key === 'Enter' || e.key === ' ' ? toggleNodeSelection(node) : null}
 						onmouseenter={(e) => showTooltip(e, node)}
 						onmouseleave={hideTooltip}
-						aria-label={`${node.name} version ${node.version}`}
+						aria-label={`${node.name} version ${node.version}, ${node.type || 'production'} dependency`}
 					>
 						<circle
-							class={`node stroke-black cursor-pointer ${focusIndex === i ? 'focus-visible' : ''} ${selectedNode === node ? 'selected' : ''} ${node.name.startsWith('@types') ? 'types-package' : ''}`}
+							class={`node cursor-pointer ${focusIndex === i ? 'focus-visible' : ''} ${
+								selectedNode === node ? 'selected' : ''
+							} ${node.name.startsWith('@types') ? 'types-package' : ''} ${
+								node.hasMultipleVersions ? 'version-conflict' : ''
+							} ${node.type ? `dep-${node.type}` : 'dep-prod'}`}
 							r={10}
 							fill={getNodeColor(node)}
-							stroke-width={selectedNode === node ? 3 : 1.5}
+							stroke={getNodeStroke(node)}
+							stroke-width={getNodeStrokeWidth(node)}
+							stroke-dasharray={node.hasMultipleVersions ? '3,2' : '0'}
 						>
 							<!-- Add accessible title -->
 							<title>{node.name} @ {node.version}</title>
 						</circle>
 
-						<!-- Add a visual pattern for types packages instead of just color -->
-						{#if node.name.startsWith('@types')}
-							<circle r="4" fill="white" stroke="none" />
+						<!-- Add visual indicators for dependency types -->
+						{#if node.type === 'dev'}
+							<!-- Dev dependency: Add a small "D" -->
+							<text dy="0.35em" text-anchor="middle" class="text-[7px] fill-white font-bold">D</text>
+						{:else if node.type === 'peer'}
+							<!-- Peer dependency: Add a small "P" -->
+							<text dy="0.35em" text-anchor="middle" class="text-[7px] fill-white font-bold">P</text>
+						{:else if node.type === 'optional'}
+							<!-- Optional dependency: Add a small "O" -->
+							<text dy="0.35em" text-anchor="middle" class="text-[7px] fill-white font-bold">O</text>
 						{/if}
 
-						<!-- Add a small badge for selected node for additional visual cue -->
+						<!-- Add a visual pattern for types packages -->
+						{#if node.name.startsWith('@types')}
+							<circle r="4" fill="white" stroke="none" />
+							<text dy="0.35em" text-anchor="middle" class="text-[6px] fill-black font-bold">TS</text>
+						{/if}
+
+						<!-- Add a small badge for selected node -->
 						{#if selectedNode === node}
 							<circle r="3" cx="7" cy="-7" fill="#38bdf8" stroke="white" stroke-width="1" />
 						{/if}
@@ -411,15 +479,38 @@
 		</g>
 	</svg>
 
+	<!-- Fixed tooltip positioning that follows the node -->
 	{#if tooltipData.node}
 		<div
-			class="tooltip absolute z-10 px-3 py-2 text-sm font-medium text-white bg-gray-900 rounded-lg shadow-sm dark:bg-gray-700"
-			style="left: {tooltipData.x + 15}px; top: {tooltipData.y + 15}px; pointer-events: none;"
+			class="tooltip absolute z-20 px-3 py-2 text-sm font-medium text-white bg-gray-900 dark:bg-gray-800 rounded-lg shadow-lg border border-gray-700 dark:border-gray-600"
+			style="left: {tooltipData.x}px; top: {tooltipData.y - 10}px; transform: translate(-50%, -100%); pointer-events: none;"
 			role="tooltip"
 		>
-			<strong>{tooltipData.node.name}</strong><br />
-			Version: {tooltipData.node.version}<br />
-			ID: {tooltipData.node.id}
+			<div class="tooltip-content max-w-xs">
+				<strong class="font-semibold">{tooltipData.node.name}</strong>
+				<div class="text-gray-300 dark:text-gray-400 text-xs mt-1">
+					Version: <span class="text-white dark:text-gray-200">{tooltipData.node.version}</span>
+				</div>
+				{#if tooltipData.node.type}
+					<div class="text-gray-300 dark:text-gray-400 text-xs">
+						Type: <span class="text-white dark:text-gray-200">{tooltipData.node.type}</span>
+					</div>
+				{/if}
+				{#if tooltipData.node.hasMultipleVersions}
+					<div class="mt-2 pt-1 border-t border-gray-700 dark:border-gray-600">
+						<span class="text-orange-300 flex items-center text-xs">
+							<svg class="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
+								<path d="M10 1L12.294 6.344H18L13.428 9.815L15.294 15.5L10 11.685L4.706 15.5L6.572 9.815L2 6.344H7.706L10 1z"/>
+							</svg>
+							Version conflict detected
+						</span>
+						{#if getVersionConflictInfo(tooltipData.node)}
+							<div class="text-xs mt-1">{getVersionConflictInfo(tooltipData.node)}</div>
+						{/if}
+					</div>
+				{/if}
+				<div class="tooltip-arrow"></div>
+			</div>
 		</div>
 	{/if}
 
@@ -451,14 +542,38 @@
 		stroke-width: 3;
 		stroke-dasharray: 5, 2;
 	}
-	.types-package {
-		/* Pattern for types packages in addition to color */
+	
+	/* Tooltip styling with arrow */
+	.tooltip-arrow {
+		position: absolute;
+		width: 0;
+		height: 0;
+		border-left: 8px solid transparent;
+		border-right: 8px solid transparent;
+		border-top: 8px solid #1f2937; /* Match tooltip background */
+		bottom: -8px;
+		left: 50%;
+		margin-left: -8px;
 	}
-	.tooltip {
-		max-width: 300px;
-		white-space: pre-wrap;
-		word-break: break-all;
+	
+	:global(.dark) .tooltip-arrow {
+		border-top-color: #1e293b; /* Match dark mode tooltip background */
 	}
+	
+	/* Styling for different dependency types */
+	.node.dep-dev {
+		filter: drop-shadow(0 0 2px rgba(239, 68, 68, 0.5));
+	}
+	.node.dep-peer {
+		filter: drop-shadow(0 0 2px rgba(59, 130, 246, 0.5));
+	}
+	.node.dep-optional {
+		filter: drop-shadow(0 0 2px rgba(139, 92, 246, 0.5));
+	}
+	.node.dep-prod {
+		filter: drop-shadow(0 0 2px rgba(16, 185, 129, 0.5));
+	}
+	
 	.sr-only {
 		position: absolute;
 		width: 1px;
@@ -469,5 +584,21 @@
 		clip: rect(0, 0, 0, 0);
 		white-space: nowrap;
 		border-width: 0;
+	}
+	.node.version-conflict {
+		stroke-opacity: 1;
+		animation: pulse 2s infinite;
+	}
+
+	@keyframes pulse {
+		0% {
+			stroke-opacity: 0.8;
+		}
+		50% {
+			stroke-opacity: 1;
+		}
+		100% {
+			stroke-opacity: 0.8;
+		}
 	}
 </style>

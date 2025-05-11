@@ -1,8 +1,12 @@
 # Node.js Dependency Visualizer
 
-An interactive web application for visualizing Node.js dependency graphs from package-lock.json, pnpm-lock.yml and yarn.lock files.
+An interactive web application for visualizing Node.js dependency graphs from package-lock.json, pnpm-lock.yml and yarn.lock files. Built with SvelteKit, D3.js, TypeScript, and Tailwind CSS.
 
-![Dependency Graph Screenshot](screenshot.png)
+![Dependency Graph 1.0 Input Screenshot](screenshot-input.png)
+![Dependency Graph 1.0 Filter Screenshot](screenshot-filter.png)
+![Dependency Graph 1.0 Graph Screenshot](screenshot-graph.png)
+![Dependency Graph 1.0 Conflicts Screenshot](screenshot-conflicts.png)
+![Dependency Graph 0.0.1 Screenshot](screenshot.png)
 
 ## Features
 
@@ -12,9 +16,22 @@ An interactive web application for visualizing Node.js dependency graphs from pa
   - yarn.lock (Yarn)
   - pnpm-lock.yaml (pnpm)
 - Force-directed graph layout using D3.js
-- Zoom, pan, and drag interactions
-- Detailed dependency information on hover
-- Filter and search functionality
+- Advanced visualization features:
+  - Visual distinction between dependency types (production, development, peer, optional)
+  - Version conflict detection and highlighting
+  - TypeScript type definitions identification
+  - Customizable node appearances with letter indicators and color coding
+- Comprehensive filtering options:
+  - Filter by dependency type (production, development, peer, optional)
+  - Filter by package name via search
+  - Highlight version conflicts
+  - Filter TypeScript type definitions
+- Interactive controls:
+  - Zoom, pan, and drag interactions
+  - Tooltips with detailed dependency information
+  - Node selection and focus functionality
+- Responsive design with both light and dark theme support
+- Accessible interface with keyboard navigation support
 
 ## Supported Lock Files
 
@@ -80,11 +97,24 @@ yarn start
 ## Usage
 
 1. Upload your lockfile (package-lock.json, yarn.lock, or pnpm-lock.yaml) using the file selector
-2. Explore your dependency graph using mouse or touch interactions:
-   - Zoom: Mouse wheel / pinch gesture
-   - Pan: Click and drag on empty space / touch and drag
-   - Move nodes: Click and drag nodes / touch and drag nodes
-   - View details: Hover over nodes to see dependency information
+2. Explore your dependency graph using mouse, touch, or keyboard interactions:
+   - **Zoom**: Mouse wheel / pinch gesture / zoom buttons
+   - **Pan**: Click and drag on empty space / touch and drag
+   - **Move nodes**: Click and drag nodes / touch and drag nodes
+   - **View details**: Hover over nodes to see dependency information
+   - **Filter**: Use the filter controls to show/hide different dependency types
+   - **Search**: Find specific packages using the search field
+   - **Toggle theme**: Switch between light and dark themes using the theme toggle button
+   - **Keyboard navigation**: Use arrow keys to navigate between nodes, Enter/Space to select, Escape to deselect
+
+## Version Conflict Visualization
+
+One of the key features is the ability to detect and highlight version conflicts in your dependency graph:
+
+- Nodes with multiple versions are highlighted with an orange dashed border
+- The Version Conflicts panel shows statistics about packages with multiple versions
+- Enable "Highlight version conflicts" to filter and show only conflicting packages
+- Tooltips for conflict nodes show all available versions in your dependency tree
 
 ## License
 

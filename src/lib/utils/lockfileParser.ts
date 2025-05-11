@@ -20,18 +20,6 @@ interface PnpmPackageInfo {
   peerDependencies?: Record<string, string>;
 }
 
-export function parseLockfile(content: string, filename: string): DependencyGraphData {
-  if (filename.includes('package-lock.json')) {
-    return parsePackageLock(content);
-  } else if (filename.includes('yarn.lock')) {
-    return parseYarnLock(content);
-  } else if (filename.includes('pnpm-lock.yaml')) {
-    return parsePnpmLock(content);
-  } else {
-    throw new Error('Unsupported lock file format');
-  }
-}
-
 function parsePackageLock(content: string): DependencyGraphData {
   const packageLock = JSON.parse(content);
   const nodesMap = new Map<string, NodeType>();
@@ -266,6 +254,7 @@ function parseYarnLock(content: string): DependencyGraphData {
   
   return { nodes, links: validLinks };
 }
+
 function parsePnpmLock(content: string): DependencyGraphData {
   const pnpmLock = yaml.load(content) as PnpmLockfile;
   const nodesMap = new Map<string, NodeType>();
@@ -447,3 +436,21 @@ function calculateLevels(
   
   return Array.from(nodesMap.values());
 }
+
+// Add a helper function to detect TypeScript type definitions
+export function isTypeDefinition(node: NodeType): boolean {
+  return node.name.startsWith('@types') || (node.type === 'dev' && node.name.endsWith('-types'));
+}
+
+export function parseLockfile(content: string, filename: string): DependencyGraphData {
+  if (filename.includes('package-lock.json')) {
+    return parsePackageLock(content);
+  } else if (filename.includes('yarn.lock')) {
+    return parseYarnLock(content);
+  } else if (filename.includes('pnpm-lock.yaml')) {
+    return parsePnpmLock(content);
+  } else {
+    throw new Error('Unsupported lock file format');
+  }
+}
+
