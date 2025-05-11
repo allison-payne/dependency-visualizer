@@ -37,13 +37,13 @@
 	}
 </script>
 
-<div class="min-h-screen transition-colors duration-300 bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100">
+<div class="flex flex-col min-h-screen transition-colors duration-300 bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100">
 	<header class="bg-white dark:bg-gray-800 shadow">
 		<div class="container mx-auto px-4 py-4 flex justify-between items-center">
 			<h1 class="text-xl font-bold">GitXplorer</h1>
 			<button 
 				class="p-2 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
-				on:click={toggleTheme} 
+				onclick={toggleTheme} 
 				aria-label={darkMode ? 'Switch to light mode' : 'Switch to dark mode'}
 			>
 				{#if darkMode}
@@ -61,7 +61,7 @@
 		</div>
 	</header>
 
-	<main class="container mx-auto px-4 py-6">
+	<main class="container mx-auto px-4 py-6 flex-grow">
 		{@render children()}
 	</main>
 
@@ -78,8 +78,9 @@
 	}
   
 	:global(body) {
-		min-height: 100vh;
-		display: flex;
-		flex-direction: column;
+		margin: 0;
+		padding: 0;
+		height: 100%;
+		width: 100%;
 	}
 </style>
